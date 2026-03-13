@@ -45,7 +45,7 @@ export default async function handler(req, res) {
 
       // Write updated list back
       await put('teton-emails.json', JSON.stringify(emails, null, 2), {
-        access: 'private',
+        access: 'public',
         addRandomSuffix: false,
       });
     } else {
