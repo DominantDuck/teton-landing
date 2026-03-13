@@ -45,6 +45,7 @@ export default async function handler(req, res) {
 
       // Write updated list back
       await put('teton-emails.json', JSON.stringify(emails, null, 2), {
+        access: 'public',
         addRandomSuffix: false,
       });
     } else {
@@ -55,7 +56,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   } catch (err) {
     console.error('Subscribe error:', err);
-    return res.status(500).json({ error: 'Something went wrong!' });
-
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 }
