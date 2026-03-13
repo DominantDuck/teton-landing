@@ -1,7 +1,7 @@
 // Vercel Serverless Function — email collection via Blob storage
 // Setup: Vercel dashboard → Storage → Create Blob Store → Connect to Project
 
-import { put, list } from '@vercel/blob';
+import { put, list, head } from '@vercel/blob';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       try {
         const { blobs } = await list({ prefix: 'teton-emails' });
         if (blobs.length > 0) {
-          const response = await fetch(blobs[0].url);
+          const response = await fetch(blobs[0].downloadUrl);
           emails = await response.json();
         }
       } catch (e) {
@@ -45,7 +45,6 @@ export default async function handler(req, res) {
 
       // Write updated list back
       await put('teton-emails.json', JSON.stringify(emails, null, 2), {
-        access: 'public',
         addRandomSuffix: false,
       });
     } else {
