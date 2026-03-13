@@ -1,12 +1,9 @@
-// Vercel Serverless Function — email collection
-// Emails are stored in Vercel KV (Redis). Set up:
-//   1. Go to your Vercel dashboard → Storage → Create KV Database
-//   2. Link it to this project — env vars are auto-injected
-//
-// If you don't want KV, swap the storage logic below for any DB/service.
+// Vercel Serverless Function — email collection via Blob storage
+// Setup: Vercel dashboard → Storage → Create Blob Store → Connect to Project
+
+import { put, list } from '@vercel/blob';
 
 export default async function handler(req, res) {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -15,24 +12,45 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { email } = req.body;
+    // Parse body — handle string or already-parsed object
+    let body = req.body;
+    if (typeof body === 'string') {
+      body = JSON.parse(body);
+    }
+    const { email } = body;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email address' });
     }
 
-    // ── Storage: Vercel KV ──────────────────────────────
-    // If KV_REST_API_URL is set, use Vercel KV
-    if (process.env.KV_REST_API_URL) {
-      const { kv } = await import('@vercel/kv');
-      const timestamp = new Date().toISOString();
-      // Store as a hash: email → signup date
-      await kv.hset('teton:emails', { [email]: timestamp });
-      // Also push to a list for easy enumeration
-      await kv.lpush('teton:email_list', JSON.stringify({ email, timestamp }));
+    const timestamp = new Date().toISOString();
+
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      // Read existing emails
+      let emails = [];
+      try {
+        const { blobs } = await list({ prefix: 'teton-emails' });
+        if (blobs.length > 0) {
+          const response = await fetch(blobs[0].url);
+          emails = await response.json();
+        }
+      } catch (e) {
+        // First time — no file yet
+      }
+
+      // Check for duplicates
+      if (!emails.some(e => e.email === email)) {
+        emails.push({ email, timestamp });
+      }
+
+      // Write updated list back
+      await put('teton-emails.json', JSON.stringify(emails, null, 2), {
+        access: 'public',
+        addRandomSuffix: false,
+      });
     } else {
-      // Fallback: just log (visible in Vercel dashboard → Logs)
-      console.log(`[SIGNUP] ${email} at ${new Date().toISOString()}`);
+      // Fallback: log to Vercel runtime logs (Dashboard → Logs)
+      console.log(`[SIGNUP] ${email} at ${timestamp}`);
     }
 
     return res.status(200).json({ success: true });
